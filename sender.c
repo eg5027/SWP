@@ -3,14 +3,14 @@
 
 void print_frame(Frame* frame)
 {
-    fprintf(stderr, "frame:\n");
-    fprintf(stderr, "frame->src=%d\n", frame->src);
-    fprintf(stderr, "frame->dst=%d\n", frame->dst);
-    fprintf(stderr, "frame->checksum=%d\n", frame->checksum);
+    fprintf(stderr, "\nframe:\n");
+//    fprintf(stderr, "frame->src=%d\n", frame->src);
+//    fprintf(stderr, "frame->dst=%d\n", frame->dst);
+//    fprintf(stderr, "frame->checksum=%d\n", frame->checksum);
     fprintf(stderr, "frame->seq=%d\n", frame->seq);
     fprintf(stderr, "frame->ack=%d\n", frame->ack);
     fprintf(stderr, "frame->flag=%d\n", frame->flag);
-    fprintf(stderr, "frame->window_size=%d\n", frame->window_size);
+//    fprintf(stderr, "frame->window_size=%d\n", frame->window_size);
     fprintf(stderr, "frame->data=%s\n", frame->data);
     fprintf(stderr, "#frame--------\n");
 }
@@ -39,7 +39,28 @@ void init_sender(Sender * sender, int id)
 struct timeval * sender_get_next_expiring_timeval(Sender * sender)
 {
     //TODO: You should fill in this function so that it returns the next timeout that should occur
-    return NULL;
+    struct timeval * tmp;
+
+
+    int pos;
+    if (sender->fin == 2)
+    {
+	return NULL;
+    }
+    pos = (sender->LAR + 1) % sender->SWS;
+
+    tmp = &(sender->timestamp[pos]);
+    return tmp;
+
+
+    //gettimeofday(&now,NULL);
+    /*
+    for (i = 0; i < sender->SWS; i++)
+    {
+	tmp = sender->timestamp[i];
+	fprintf(stderr, "time=%ld,%ld\n",tmp.tv_sec, tmp.tv_usec);
+    }*/
+        
 }
 
 int recv_ack(Sender* sender, Frame* frame)
@@ -136,6 +157,40 @@ void handle_pending_frame(Sender * sender,
 	//buf = add_chksum(frame);
 	buf = convert_frame_to_char(frame);
 
+	// add into the sender buffer;
+	int pos;
+	pos = frame->seq % sender->SWS;
+
+	free (sender->buffer[pos]);
+	*(sender->buffer + pos) = frame;
+
+	
+	/* buffer lookup
+	Frame* see;
+	int i;
+	for (i = 0; i < sender->SWS; i++)
+	{
+	    see = sender->buffer[i];
+	    fprintf(stderr, "%s\n", see->data);
+	}
+	*/
+
+	struct timeval now;
+	gettimeofday(&now, NULL);
+	long long t;
+	long wait_time = 1000000;
+	/*
+	now.tv_usec = now.tv_usec + wait_time;
+
+
+	if (now.tv_usec < wait_time)
+	{
+	    now.tv_sec++;
+	    now.tv_usec = now.tv_usec - wait_time;
+	}
+	*/
+	now.tv_sec++;
+	sender->timestamp[pos] = now;
 	ll_append_node(outgoing_frames_head_ptr, buf);
     }
 }
@@ -181,7 +236,7 @@ void handle_input_cmds(Sender * sender,
 	    sender->LFS = -1;
 	    sender->LAR = -1;
 	    sender->SWS = 5;
-	    sender->FSS = 1 + msg_length / TEMP_SIZE;
+	    sender->FSS = (1 + msg_length) / TEMP_SIZE;
 	    sender->fin = 0;// not fin
 
 	    free(sender->message);
@@ -189,6 +244,22 @@ void handle_input_cmds(Sender * sender,
 
 	    strcpy(sender->message, outgoing_cmd->message);
 	    sender->message_length = msg_length;
+
+	    //init buffer;
+	    sender->buffer = (Frame**) malloc(8 * sizeof(Frame*));
+	    sender->timestamp = malloc(8 * sizeof(struct timeval));
+
+	    int i;
+	    struct timeval init_time;
+	    gettimeofday(&init_time, NULL);
+	    init_time.tv_sec += 999999;
+
+	    for (i = 0; i < 8; i++)
+	    {
+		sender->buffer[i] = malloc(1);
+		sender->timestamp[i] = init_time;
+	    }
+
 
 	    //print_sender(sender);
 
@@ -220,6 +291,38 @@ void handle_timedout_frames(Sender * sender,
     //    1) Iterate through the sliding window protocol information you maintain for each receiver
     //    2) Locate frames that are timed out and add them to the outgoing frames
     //    3) Update the next timeout field on the outgoing frames
+    //
+    
+    struct timeval now;
+    struct timeval tmp;
+    long long interval;
+    if (!sender->fin)
+    {
+	//find the timeout and send out
+	int pos;
+	int seq;
+	seq = sender->LAR + 1;
+	pos = seq % sender->SWS;
+
+	gettimeofday(&now, NULL);
+	tmp = sender->timestamp[pos];
+	
+	interval = (now.tv_sec - tmp.tv_sec) * 1000000
+		   + (now.tv_usec - tmp.tv_usec);
+
+	if (interval < 100000)
+	    return;
+	fprintf(stderr, "sender:timeout!seq=%d\n",seq);
+    	fprintf(stderr, "sender,%ld:%ld\n", now.tv_sec, now.tv_usec);
+	fprintf(stderr, "sender,%ld:%ld\n", tmp.tv_sec, tmp.tv_usec);
+	
+	Frame* outgoing_frame;
+       	outgoing_frame = sender->buffer[pos];
+	char * outgoing_charbuf = convert_frame_to_char(outgoing_frame);
+	print_frame(outgoing_frame);
+	ll_append_node(outgoing_frames_head_ptr,
+		       outgoing_charbuf);
+    }
 }
 
 

@@ -56,6 +56,32 @@ struct LLnode_t
 typedef struct LLnode_t LLnode;
 
 
+#define MAX_FRAME_SIZE 64
+
+//TODO: You should change this!
+//Remember, your frame can be AT MOST 64 bytes!
+//#define FRAME_PAYLOAD_SIZE 58
+#define FRAME_PAYLOAD_SIZE 56
+#define TEMP_SIZE 2
+#define FRAME_HEAD_SIZE 8
+
+#define SEND 1
+#define ACK 2
+#define FIN 3
+struct Frame_t
+{
+    //char data[FRAME_PAYLOAD_SIZE];
+    unsigned short checksum;
+    char data[MAX_FRAME_SIZE - FRAME_HEAD_SIZE];
+    unsigned char src;
+    unsigned char dst;
+    unsigned char seq;
+    unsigned char ack;
+    unsigned char flag;
+    unsigned char window_size;
+    //unsigned char size;
+};
+
 //Receiver and sender data structures
 struct Receiver_t
 {
@@ -96,7 +122,7 @@ struct Sender_t
     int message_length;
     
     //buffer
-    char* *buffer;
+    struct Frame* *buffer;
     struct timeval *timestamp;
     //SWP
     int LAR;
@@ -117,32 +143,6 @@ enum SendFrame_DstType
 typedef struct Sender_t Sender;
 typedef struct Receiver_t Receiver;
 
-
-#define MAX_FRAME_SIZE 64
-
-//TODO: You should change this!
-//Remember, your frame can be AT MOST 64 bytes!
-//#define FRAME_PAYLOAD_SIZE 58
-#define FRAME_PAYLOAD_SIZE 56
-#define TEMP_SIZE 2
-#define FRAME_HEAD_SIZE 8
-
-#define SEND 1
-#define ACK 2
-#define FIN 3
-struct Frame_t
-{
-    //char data[FRAME_PAYLOAD_SIZE];
-    unsigned short checksum;
-    char data[MAX_FRAME_SIZE - FRAME_HEAD_SIZE];
-    unsigned char src;
-    unsigned char dst;
-    unsigned char seq;
-    unsigned char ack;
-    unsigned char flag;
-    unsigned char window_size;
-    //unsigned char size;
-};
 typedef struct Frame_t Frame;
 
 
