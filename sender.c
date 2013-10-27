@@ -21,6 +21,7 @@ void print_sender(Sender* sender)
     fprintf(stderr, "sender->LAR=%d\n", sender->LAR);
     fprintf(stderr, "sender->LFS=%d\n", sender->LFS);
     fprintf(stderr, "sender->SWS=%d\n", sender->SWS);
+    fprintf(stderr, "sender->FSS=%d\n", sender->FSS);
     fprintf(stderr, "sender->full=%d\n", sender->send_full);
     fprintf(stderr, "sender->fin=%d\n", sender->fin);
     fprintf(stderr, "sender->message=%s\n", sender->message);
@@ -69,6 +70,11 @@ int recv_ack(Sender* sender, Frame* frame)
 	&& (frame->ack <= sender->LFS))
     {
 	sender->LAR = frame->ack;
+	if (sender->LAR == sender->FSS)
+	{
+	    sender->fin = 2;
+	    print_sender(sender);
+	}
 	fprintf(stderr,"sender_ack:%d\n",sender->LAR);
     }
     return 0;
@@ -145,10 +151,11 @@ void handle_pending_frame(Sender * sender,
     while ((sender->LFS - sender->LAR) < sender->SWS)
     {
 	//calc whether LAR has been at the out part
-	if ((sender->LFS + 1) == sender->FSS)
+	if ((sender->LFS) == (sender->FSS + 1))
 	{
 	    //no more packets
 	    sender->fin = 1;
+	    //print_sender(sender);
 	    break;
 	}
 	
@@ -235,8 +242,8 @@ void handle_input_cmds(Sender * sender,
 	    //init sender
 	    sender->LFS = -1;
 	    sender->LAR = -1;
-	    sender->SWS = 5;
-	    sender->FSS = (1 + msg_length) / TEMP_SIZE;
+	    sender->SWS = 3;
+	    sender->FSS = (msg_length - TEMP_SIZE + 1) / TEMP_SIZE;
 	    sender->fin = 0;// not fin
 
 	    free(sender->message);
@@ -296,33 +303,41 @@ void handle_timedout_frames(Sender * sender,
     struct timeval now;
     struct timeval tmp;
     long long interval;
-    if (!sender->fin)
+    if (sender->fin == 2)
     {
-	//find the timeout and send out
-	int pos;
-	int seq;
-	seq = sender->LAR + 1;
-	pos = seq % sender->SWS;
-
-	gettimeofday(&now, NULL);
-	tmp = sender->timestamp[pos];
-	
-	interval = (now.tv_sec - tmp.tv_sec) * 1000000
-		   + (now.tv_usec - tmp.tv_usec);
-
-	if (interval < 100000)
-	    return;
-	fprintf(stderr, "sender:timeout!seq=%d\n",seq);
-    	fprintf(stderr, "sender,%ld:%ld\n", now.tv_sec, now.tv_usec);
-	fprintf(stderr, "sender,%ld:%ld\n", tmp.tv_sec, tmp.tv_usec);
-	
-	Frame* outgoing_frame;
-       	outgoing_frame = sender->buffer[pos];
-	char * outgoing_charbuf = convert_frame_to_char(outgoing_frame);
-	print_frame(outgoing_frame);
-	ll_append_node(outgoing_frames_head_ptr,
-		       outgoing_charbuf);
+	return;
     }
+    if (sender->fin == 1)
+    {
+    }
+    
+    //find the timeout and send out
+    int pos;
+    int seq;
+    seq = sender->LAR + 1;
+    pos = seq % sender->SWS;
+
+    gettimeofday(&now, NULL);
+    tmp = sender->timestamp[pos];
+    
+    interval = (now.tv_sec - tmp.tv_sec) * 1000000
+	       + (now.tv_usec - tmp.tv_usec);
+
+    if (interval < 100000)
+	return;
+    fprintf(stderr, "sender:timeout!seq=%d\n",seq);
+    fprintf(stderr, "sender,%ld:%ld\n", now.tv_sec, now.tv_usec);
+    fprintf(stderr, "sender,%ld:%ld\n", tmp.tv_sec, tmp.tv_usec);
+    
+    Frame* outgoing_frame;
+    outgoing_frame = sender->buffer[pos];
+    sender->timestamp[pos] = now;
+
+    char * outgoing_charbuf = convert_frame_to_char(outgoing_frame);
+    print_frame(outgoing_frame);
+    ll_append_node(outgoing_frames_head_ptr,
+		   outgoing_charbuf);
+
 }
 
 
