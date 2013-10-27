@@ -1,11 +1,39 @@
 #include "sender.h"
 
+
+void print_frame(Frame* frame)
+{
+    fprintf(stderr, "frame:\n");
+    fprintf(stderr, "frame->src=%d\n", frame->src);
+    fprintf(stderr, "frame->dst=%d\n", frame->dst);
+    fprintf(stderr, "frame->checksum=%d\n", frame->checksum);
+    fprintf(stderr, "frame->seq=%d\n", frame->seq);
+    fprintf(stderr, "frame->ack=%d\n", frame->ack);
+    fprintf(stderr, "frame->flag=%d\n", frame->flag);
+    fprintf(stderr, "frame->window_size=%d\n", frame->window_size);
+    fprintf(stderr, "frame->data=%s\n", frame->data);
+    fprintf(stderr, "#frame--------\n");
+}
+
+void print_sender(Sender* sender)
+{
+    fprintf(stderr, "sender:\n");
+    fprintf(stderr, "sender->LAR=%d\n", sender->LAR);
+    fprintf(stderr, "sender->LFS=%d\n", sender->LFS);
+    fprintf(stderr, "sender->SWS=%d\n", sender->SWS);
+    fprintf(stderr, "sender->full=%d\n", sender->send_full);
+    fprintf(stderr, "sender->fin=%d\n", sender->fin);
+    fprintf(stderr, "sender->message=%s\n", sender->message);
+}
 void init_sender(Sender * sender, int id)
 {
     //TODO: You should fill in this function as necessary
     sender->send_id = id;
     sender->input_cmdlist_head = NULL;
     sender->input_framelist_head = NULL;
+
+    sender->fin = 2;
+    sender->message = malloc(1);
 }
 
 struct timeval * sender_get_next_expiring_timeval(Sender * sender)
@@ -14,7 +42,16 @@ struct timeval * sender_get_next_expiring_timeval(Sender * sender)
     return NULL;
 }
 
-
+int recv_ack(Sender* sender, Frame* frame)
+{
+    if ((frame->ack > sender->LAR )
+	&& (frame->ack <= sender->LFS))
+    {
+	sender->LAR = frame->ack;
+	fprintf(stderr,"sender_ack:%d\n",sender->LAR);
+    }
+    return 0;
+}
 void handle_incoming_acks(Sender * sender,
                           LLnode ** outgoing_frames_head_ptr)
 {
@@ -24,6 +61,83 @@ void handle_incoming_acks(Sender * sender,
     //    3) Check whether the frame is corrupted
     //    4) Check whether the frame is for this sender
     //    5) Do sliding window protocol for sender/receiver pair   
+    int incoming_msgs_length = ll_get_length(sender->input_framelist_head);
+    while (incoming_msgs_length > 0)
+    {
+        LLnode * ll_inmsg_node = ll_pop_node(&sender->input_framelist_head);
+        incoming_msgs_length = ll_get_length(sender->input_framelist_head);
+        char * raw_char_buf = (char *) ll_inmsg_node->value;
+        Frame * inframe = convert_char_to_frame(raw_char_buf);
+        free(raw_char_buf);
+
+	if (sender->send_id == inframe->dst)
+	{
+	    if (inframe->flag == ACK)
+	    {
+		recv_ack(sender, inframe);
+	    }
+	}
+
+	free(inframe);
+    }
+}
+
+Frame* build_frame(Sender* sender)
+{
+    Frame* frame;
+    frame = (Frame*) malloc(sizeof(Frame));
+
+    frame->dst = sender->recv_id;
+    frame->src = sender->send_id;
+
+    frame->seq = ++(sender->LFS);
+    frame->ack = sender->LAR;
+    frame->flag = SEND;
+    frame->window_size = sender->SWS;
+
+
+    int length;
+    int start;
+    length = TEMP_SIZE; // 2
+
+    start = frame->seq * length;
+
+    strncpy(frame->data, (sender->message + start), length);
+    //*(sender->message + start + length + 1) = 0;
+    *(frame->data + length) = 0;
+
+    
+    print_frame(frame);
+
+    return frame;
+}
+void handle_pending_frame(Sender * sender,
+                          LLnode ** outgoing_frames_head_ptr)
+{
+    Frame* frame;
+    char* buf;
+    if (sender->fin == 2)
+	return;
+    if (sender->fin == 1)
+	return;
+
+    while ((sender->LFS - sender->LAR) < sender->SWS)
+    {
+	//calc whether LAR has been at the out part
+	if ((sender->LFS + 1) == sender->FSS)
+	{
+	    //no more packets
+	    sender->fin = 1;
+	    break;
+	}
+	
+	frame = build_frame(sender);
+	
+	//buf = add_chksum(frame);
+	buf = convert_frame_to_char(frame);
+
+	ll_append_node(outgoing_frames_head_ptr, buf);
+    }
 }
 
 
@@ -58,10 +172,26 @@ void handle_input_cmds(Sender * sender,
         //                    Does the receiver have enough space in in it's input queue to handle this message?
         //                    Were the previous messages sent to this receiver ACTUALLY delivered to the receiver?
         int msg_length = strlen(outgoing_cmd->message);
-        if (msg_length > MAX_FRAME_SIZE)
+        if (msg_length > 0)
         {
-            //Do something about messages that exceed the frame size
-            printf("<SEND_%d>: sending messages of length greater than %d is not implemented\n", sender->send_id, MAX_FRAME_SIZE);
+	    //init id
+	    sender->recv_id = outgoing_cmd->dst_id;
+	    
+	    //init sender
+	    sender->LFS = -1;
+	    sender->LAR = -1;
+	    sender->SWS = 5;
+	    sender->FSS = 1 + msg_length / TEMP_SIZE;
+	    sender->fin = 0;// not fin
+
+	    free(sender->message);
+	    sender->message = malloc(msg_length);
+
+	    strcpy(sender->message, outgoing_cmd->message);
+	    sender->message_length = msg_length;
+
+	    //print_sender(sender);
+
         }
         else
         {
@@ -186,6 +316,8 @@ void * run_sender(void * input_sender)
 
         //Implement this
         handle_input_cmds(sender,
+                          &outgoing_frames_head);
+	handle_pending_frame(sender,
                           &outgoing_frames_head);
 
         pthread_mutex_unlock(&sender->buffer_mutex);

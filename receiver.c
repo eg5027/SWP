@@ -7,6 +7,27 @@ void init_receiver(Receiver * receiver,
     receiver->input_framelist_head = NULL;
 }
 
+Frame* build_ack(Receiver * receiver,
+      			  Frame* inframe)
+{
+    Frame* outframe;
+
+    outframe = (Frame*) malloc(sizeof(Frame));
+    
+    //dst
+    outframe->src = inframe->dst;
+    outframe->dst = inframe->src;
+
+    //TODO:ack should be the receiver's ack
+    outframe->seq = inframe->seq;
+    outframe->ack = inframe->seq;
+
+    outframe->flag = ACK;
+
+    //outframe->window_size = receiver->RWS;
+    return outframe;
+    
+}
 
 void handle_incoming_msgs(Receiver * receiver,
                           LLnode ** outgoing_frames_head_ptr)
@@ -19,7 +40,8 @@ void handle_incoming_msgs(Receiver * receiver,
     //    5) Do sliding window protocol for sender/receiver pair
 
     int incoming_msgs_length = ll_get_length(receiver->input_framelist_head);
-    while (incoming_msgs_length > 0)
+    //while (incoming_msgs_length > 0)
+    if (incoming_msgs_length > 0)
     {
         //Pop a node off the front of the link list and update the count
         LLnode * ll_inmsg_node = ll_pop_node(&receiver->input_framelist_head);
@@ -36,7 +58,16 @@ void handle_incoming_msgs(Receiver * receiver,
         //Free raw_char_buf
         free(raw_char_buf);
         
-        printf("<RECV_%d>:[%s]\n", receiver->recv_id, inframe->data);
+	if (receiver->recv_id == inframe->dst)
+	{
+	    Frame * outframe;
+	    char* buf;
+	    printf("<RECV_%d>:[%s]\n", receiver->recv_id, inframe->data);
+	    outframe = build_ack(receiver, inframe);
+
+	    buf = convert_frame_to_char(outframe);
+	    ll_append_node(outgoing_frames_head_ptr, buf);
+	}
 
         free(inframe);
         free(ll_inmsg_node);

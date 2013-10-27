@@ -60,14 +60,8 @@ typedef struct LLnode_t LLnode;
 struct Receiver_t
 {
     char* message;
-    char* buffer;
-    char* recv_flag;
-    int seq;
-    int ack;
-    int window_size;
-    int fin;
-    int first;
-    int last;
+    char** buffer;
+    int buffer_pos;
 
     //DO NOT CHANGE:
     // 1) buffer_mutex
@@ -97,23 +91,21 @@ struct Sender_t
     int send_id;
     int recv_id;
 
+    //message
+    char* message;
     int message_length;
-
-    int length; // per_packet = 
-    //message [first * length : last * length]
-
-    int first; // the windows
-    int last; // the windows
-    int window_size; // the windows size
-    int seq; // the position
-    int fin_seq;
-    int ack; // the ack position
-    int wait_ack;
-    int fin; // whether has been fin or not
-    int goon; //DEBUG one
-    char* message; // the message
-    struct timeval timestamp;
-    struct timeval timeout;
+    
+    //buffer
+    char* *buffer;
+    struct timeval *timestamp;
+    //SWP
+    int LAR;
+    int LFS;
+    int FSS; // Final seq of Sender
+    int SWS;
+    int send_full;
+    int fin;
+    
 };
 
 enum SendFrame_DstType 
@@ -132,6 +124,7 @@ typedef struct Receiver_t Receiver;
 //Remember, your frame can be AT MOST 64 bytes!
 //#define FRAME_PAYLOAD_SIZE 58
 #define FRAME_PAYLOAD_SIZE 56
+#define TEMP_SIZE 2
 #define FRAME_HEAD_SIZE 8
 
 #define SEND 1
