@@ -137,7 +137,8 @@ Frame* build_frame(Sender* sender)
     int start;
     length = TEMP_SIZE; // 2
 
-    start = frame->seq * length;
+    //start = frame->seq * length;
+    start = sender->LFS * length;
 
     if (start >= sender->message_length)
     {
