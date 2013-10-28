@@ -5,7 +5,7 @@ char* add_chksum(Frame* frame)
     char* buf;
     buf = convert_frame_to_char(frame);
     frame->checksum = chksum(
-	    (unsigned short *) buf, MAX_FRAME_SIZE / 2);
+	(unsigned short *) buf, MAX_FRAME_SIZE / 2);
     buf = convert_frame_to_char(frame);
     return buf;
 }

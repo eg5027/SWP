@@ -62,7 +62,7 @@ typedef struct LLnode_t LLnode;
 //Remember, your frame can be AT MOST 64 bytes!
 //#define FRAME_PAYLOAD_SIZE 58
 #define FRAME_PAYLOAD_SIZE 56
-#define TEMP_SIZE 10
+#define TEMP_SIZE 3
 #define FRAME_HEAD_SIZE 8
 
 #define SEND 1

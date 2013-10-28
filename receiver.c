@@ -29,7 +29,7 @@ void init_receiver(Receiver * receiver,
     receiver->input_framelist_head = NULL;
 
     receiver->LFR = -1;
-    receiver->RWS = 2;
+    receiver->RWS = 8;
     receiver->LAF = receiver->LAF + receiver->RWS;
     receiver->fin = 0;
 

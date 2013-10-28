@@ -129,12 +129,19 @@ Frame* build_frame(Sender* sender)
 
     start = frame->seq * length;
 
-    strncpy(frame->data, (sender->message + start), length);
+    if (start >= sender->message_length)
+    {
+	sender->FSS = sender->LFS;
+	*(frame->data) = 0;
+    }
+    else
+    {
+	memset(frame->data, 0, FRAME_PAYLOAD_SIZE);
+	strncpy(frame->data, (sender->message + start), length);
+    }
     //*(sender->message + start + length + 1) = 0;
     *(frame->data + length) = 0;
 
-    
-    print_frame(frame);
 
     return frame;
 }
@@ -151,7 +158,8 @@ void handle_pending_frame(Sender * sender,
     while ((sender->LFS - sender->LAR) < sender->SWS)
     {
 	//calc whether LAR has been at the out part
-	if ((sender->LFS) == (sender->FSS + 1))
+	//if ((sender->LFS) == (sender->FSS + 1))
+	if ((sender->LFS) == (sender->FSS))
 	{
 	    //no more packets
 	    sender->fin = 1;
@@ -163,7 +171,11 @@ void handle_pending_frame(Sender * sender,
 	
 	//buf = add_chksum(frame);
 	buf = convert_frame_to_char(frame);
-
+	frame->checksum = chksum((unsigned short*) buf, 
+				MAX_FRAME_SIZE / 2);
+	buf = convert_frame_to_char(frame);
+	
+	print_frame(frame);
 	// add into the sender buffer;
 	int pos;
 	pos = frame->seq % sender->SWS;
@@ -198,6 +210,7 @@ void handle_pending_frame(Sender * sender,
 	*/
 	now.tv_sec++;
 	sender->timestamp[pos] = now;
+	
 	ll_append_node(outgoing_frames_head_ptr, buf);
     }
 }
@@ -242,12 +255,13 @@ void handle_input_cmds(Sender * sender,
 	    //init sender
 	    sender->LFS = -1;
 	    sender->LAR = -1;
-	    sender->SWS = 3;
+	    sender->SWS = 8;
 	    sender->FSS = (msg_length + TEMP_SIZE - 1) / TEMP_SIZE;
+	    //sender->FSS = (msg_length + TEMP_SIZE) / TEMP_SIZE;
 	    sender->fin = 0;// not fin
 
 	    free(sender->message);
-	    sender->message = malloc(msg_length);
+	    sender->message = malloc(msg_length + 1);
 
 	    strcpy(sender->message, outgoing_cmd->message);
 	    sender->message_length = msg_length;
@@ -283,6 +297,7 @@ void handle_input_cmds(Sender * sender,
 
             //Convert the message to the outgoing_charbuf
             char * outgoing_charbuf = convert_frame_to_char(outgoing_frame);
+	    //char * outgoing_charbuf = add_chksum(outgoing_frame);
             ll_append_node(outgoing_frames_head_ptr,
                            outgoing_charbuf);
             free(outgoing_frame);
@@ -311,33 +326,41 @@ void handle_timedout_frames(Sender * sender,
     {
     }
     
-    //find the timeout and send out
+	//find the timeout and send out
     int pos;
     int seq;
-    seq = sender->LAR + 1;
-    pos = seq % sender->SWS;
+    for (seq = (sender->LAR + 1); seq <= sender->LFS; seq++)
+    {
+	//seq = sender->LAR + 1;
+	pos = seq % sender->SWS;
 
-    gettimeofday(&now, NULL);
-    tmp = sender->timestamp[pos];
-    
-    interval = (now.tv_sec - tmp.tv_sec) * 1000000
-	       + (now.tv_usec - tmp.tv_usec);
+	gettimeofday(&now, NULL);
+	tmp = sender->timestamp[pos];
+	
+	interval = (now.tv_sec - tmp.tv_sec) * 1000000
+		   + (now.tv_usec - tmp.tv_usec);
 
-    if (interval < 100000)
-	return;
-    fprintf(stderr, "sender:timeout!seq=%d\n",seq);
-    fprintf(stderr, "sender,%ld:%ld\n", now.tv_sec, now.tv_usec);
-    fprintf(stderr, "sender,%ld:%ld\n", tmp.tv_sec, tmp.tv_usec);
-    
-    Frame* outgoing_frame;
-    outgoing_frame = sender->buffer[pos];
-    sender->timestamp[pos] = now;
+	if (interval < 100000)
+	    return;
+	fprintf(stderr, "sender:timeout!seq=%d\n",seq);
+	fprintf(stderr, "sender,%ld:%ld\n", now.tv_sec, now.tv_usec);
+	fprintf(stderr, "sender,%ld:%ld\n", tmp.tv_sec, tmp.tv_usec);
+	
+	Frame* outgoing_frame;
+	outgoing_frame = sender->buffer[pos];
+	sender->timestamp[pos] = now;
 
-    char * outgoing_charbuf = convert_frame_to_char(outgoing_frame);
-    print_frame(outgoing_frame);
-    ll_append_node(outgoing_frames_head_ptr,
-		   outgoing_charbuf);
+	char * buf = convert_frame_to_char(outgoing_frame);
 
+	outgoing_frame->checksum = chksum((unsigned short*) buf, 
+				    MAX_FRAME_SIZE / 2);
+	buf = convert_frame_to_char(outgoing_frame);
+	char* outgoing_charbuf = buf;
+	    
+	print_frame(outgoing_frame);
+	ll_append_node(outgoing_frames_head_ptr,
+		       outgoing_charbuf);
+    }
 }
 
 
