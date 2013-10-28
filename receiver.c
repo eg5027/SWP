@@ -77,10 +77,18 @@ int copy_buffer(Receiver * receiver, int seq)
     {
 	ipos = iseq % receiver->RWS;
 	frame = (Frame*)receiver->buffer[ipos];
+	if (frame->flag == FIN)
+	{
+	    receiver->fin = 1;
+	}
 	new_string = frame->data;
 	receiver->message = append_string(receiver->message,new_string);
     }
-    print_receiver(receiver);
+    //print_receiver(receiver);
+    if (receiver->fin)
+    {
+	printf("<RECV_%d>:[%s]\n", receiver->recv_id, receiver->message);
+    }
     return 0;
 }
 Frame* build_ack(Receiver * receiver,
@@ -191,7 +199,6 @@ void handle_incoming_msgs(Receiver * receiver,
 	{
 	    Frame * outframe;
 	    char* buf;
-	    printf("<RECV_%d>:[%s]\n", receiver->recv_id, inframe->data);
 
 	    outframe = build_ack(receiver, inframe);
 

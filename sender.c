@@ -141,6 +141,7 @@ Frame* build_frame(Sender* sender)
     if (start >= sender->message_length)
     {
 	sender->FSS = sender->LFS;
+	frame->flag = FIN;
 	*(frame->data) = 0;
     }
     else
