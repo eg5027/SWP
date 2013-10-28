@@ -17,6 +17,7 @@
 #define AUTOMATED_FILENAME 512
 typedef unsigned char uchar_t;
 
+#define MAX_SEQ 255
 //System configuration information
 struct SysConfig_t
 {

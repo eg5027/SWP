@@ -67,13 +67,14 @@ char* append_string(char* old, char* new)
 int copy_buffer(Receiver * receiver, int seq)
 {
 
-    int iseq;
-    int ipos;
+    unsigned char iseq;
+    unsigned char ipos;
     Frame* frame;
     char* new_string;
 
     //for (iseq = seq; (iseq > receiver->LFR) && iseq >= 0; iseq--)
-    for (iseq = (receiver->LFR + 1); iseq <= seq; iseq++)
+    //for (iseq = (receiver->LFR + 1); iseq <= seq; iseq++)
+    for (iseq = (receiver->LFR + 1); iseq != (seq + 1); iseq++)
     {
 	ipos = iseq % receiver->RWS;
 	frame = (Frame*)receiver->buffer[ipos];
@@ -92,7 +93,7 @@ int copy_buffer(Receiver * receiver, int seq)
 	receiver->RWS = 8;
 	receiver->LAF = receiver->LFR + receiver->RWS;
 	printf("<RECV_%d>:[%s]\n", receiver->recv_id, receiver->message);
-	fprintf(stderr, "message=%d\n", strlen(receiver->message));
+	fprintf(stderr, "message=%ld\n", strlen(receiver->message));
 
 	receiver->message = malloc(1);
 	*(receiver->message) = 0;
@@ -123,8 +124,8 @@ Frame* build_ack(Receiver * receiver,
     outframe->seq = inframe->seq;
     outframe->ack = receiver->LFR;
 
-    if (!(inframe->seq > receiver->LFR 
-	&& inframe->seq <= receiver->LAF))
+    if (!(inframe->seq > (receiver->LFR % MAX_SEQ)
+	&& inframe->seq <= (receiver->LAF % MAX_SEQ)))
     {
 	return outframe;
     }
@@ -139,11 +140,12 @@ Frame* build_ack(Receiver * receiver,
     //quick update LFR
 
     //update the LFR 
-    int iseq; // temp seq;  [LAR .. tseq]
-    int ipos;
+    unsigned char iseq; // temp seq;  [LAR .. tseq]
+    unsigned char ipos;
     int all_recv = 1;
     Frame* tmp;
-    for (iseq = inframe->seq; (iseq > receiver->LFR) && iseq >= 0; iseq--)
+    //for (iseq = inframe->seq; (iseq > receiver->LFR) && iseq >= 0; iseq--)
+    for (iseq = (receiver->LFR + 1); iseq != (inframe->seq + 1); iseq++)
     {
 	ipos = iseq % receiver->RWS;
 	tmp = (Frame*)receiver->buffer[ipos];
