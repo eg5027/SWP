@@ -92,6 +92,7 @@ int copy_buffer(Receiver * receiver, int seq)
 	receiver->RWS = 8;
 	receiver->LAF = receiver->LFR + receiver->RWS;
 	printf("<RECV_%d>:[%s]\n", receiver->recv_id, receiver->message);
+	fprintf(stderr, "message=%d\n", strlen(receiver->message));
 
 	receiver->message = malloc(1);
 	*(receiver->message) = 0;

@@ -25,6 +25,7 @@ void print_sender(Sender* sender)
     fprintf(stderr, "sender->full=%d\n", sender->send_full);
     fprintf(stderr, "sender->fin=%d\n", sender->fin);
     fprintf(stderr, "sender->message=%s\n", sender->message);
+    fprintf(stderr, "sender->length=%d\n", sender->message_length);
 }
 void init_sender(Sender * sender, int id)
 {

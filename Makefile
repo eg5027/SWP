@@ -36,4 +36,4 @@ test:
 test2:
 	./tritontalk -s 3 -r 3 -d 0.5
 test3:
-	./tritontalk -s 3 -r 3 -c 0.5
+	./tritontalk -s 3 -r 3 -c 0.2
