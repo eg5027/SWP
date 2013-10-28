@@ -62,12 +62,13 @@ typedef struct LLnode_t LLnode;
 //Remember, your frame can be AT MOST 64 bytes!
 //#define FRAME_PAYLOAD_SIZE 58
 #define FRAME_PAYLOAD_SIZE 56
-#define TEMP_SIZE 2
+#define TEMP_SIZE 10
 #define FRAME_HEAD_SIZE 8
 
 #define SEND 1
 #define ACK 2
-#define FIN 3
+#define SEND_FIN 3
+#define FIN 4
 struct Frame_t
 {
     //char data[FRAME_PAYLOAD_SIZE];
@@ -105,7 +106,6 @@ struct Receiver_t
     LLnode * input_framelist_head;
     
     int recv_id;
-
 };
 
 struct Sender_t

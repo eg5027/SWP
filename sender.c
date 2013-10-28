@@ -243,7 +243,7 @@ void handle_input_cmds(Sender * sender,
 	    sender->LFS = -1;
 	    sender->LAR = -1;
 	    sender->SWS = 3;
-	    sender->FSS = (msg_length - TEMP_SIZE + 1) / TEMP_SIZE;
+	    sender->FSS = (msg_length + TEMP_SIZE - 1) / TEMP_SIZE;
 	    sender->fin = 0;// not fin
 
 	    free(sender->message);
