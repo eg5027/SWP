@@ -1,4 +1,5 @@
 #include "receiver.h"
+#include "chksum.h"
 void print_f(Frame* frame)
 {
     fprintf(stderr, "\nframe:\n");
@@ -36,7 +37,7 @@ void init_receiver(Receiver * receiver,
     // init message;
     receiver->message = malloc(1);
     *(receiver->message) = 0;
-    receiver->buffer = (Frame*)malloc(8 * sizeof(Frame*));
+    receiver->buffer = malloc(8 * sizeof(Frame*));
 
     int i; 
     Frame* frame;
@@ -45,7 +46,7 @@ void init_receiver(Receiver * receiver,
 	frame = (Frame*) malloc(sizeof(Frame));
 	frame->seq = -1;
 	frame->ack = -1;
-	receiver->buffer[i] = frame;
+	receiver->buffer[i] = (struct Frame*)frame;
     }
     receiver->buffer_pos = 0;
 }
@@ -73,7 +74,7 @@ int copy_buffer(Receiver * receiver, int seq)
     for (iseq = seq; (iseq > receiver->LFR) && iseq >= 0; iseq--)
     {
 	ipos = iseq % receiver->RWS;
-	frame = receiver->buffer[ipos];
+	frame = (Frame*)receiver->buffer[ipos];
 	new_string = frame->data;
 	receiver->message = append_string(receiver->message,new_string);
     }
@@ -103,7 +104,7 @@ Frame* build_ack(Receiver * receiver,
     pos = inframe->seq % receiver->RWS;
 
     free(receiver->buffer[pos]); // Free the pervious one
-    receiver->buffer[pos] = inframe;
+    receiver->buffer[pos] = (struct Frame*)inframe;
 
     //quick update LFR
 
@@ -115,7 +116,7 @@ Frame* build_ack(Receiver * receiver,
     for (iseq = inframe->seq; (iseq > receiver->LFR) && iseq >= 0; iseq--)
     {
 	ipos = iseq % receiver->RWS;
-	tmp = receiver->buffer[ipos];
+	tmp = (Frame*)receiver->buffer[ipos];
 	if (iseq == tmp->seq)
 	{
 	    continue;
@@ -155,8 +156,8 @@ void handle_incoming_msgs(Receiver * receiver,
     //    5) Do sliding window protocol for sender/receiver pair
 
     int incoming_msgs_length = ll_get_length(receiver->input_framelist_head);
-    //while (incoming_msgs_length > 0)
-    if (incoming_msgs_length > 0)
+    while (incoming_msgs_length > 0)
+    //if (incoming_msgs_length > 0)
     {
         //Pop a node off the front of the link list and update the count
         LLnode * ll_inmsg_node = ll_pop_node(&receiver->input_framelist_head);
@@ -169,7 +170,18 @@ void handle_incoming_msgs(Receiver * receiver,
         //                    Is this an old, retransmitted message?           
         char * raw_char_buf = (char *) ll_inmsg_node->value;
         Frame * inframe = convert_char_to_frame(raw_char_buf);
+	
         
+	short checksum;
+	checksum = chksum((unsigned short*) raw_char_buf, 
+			    MAX_FRAME_SIZE / 2);
+	if (checksum)
+	{
+	    fprintf(stderr, "recv checksum error\n");
+	    free(raw_char_buf);
+	    free(ll_inmsg_node);
+	    continue;
+	}
         //Free raw_char_buf
         free(raw_char_buf);
         
@@ -181,7 +193,8 @@ void handle_incoming_msgs(Receiver * receiver,
 
 	    outframe = build_ack(receiver, inframe);
 
-	    buf = convert_frame_to_char(outframe);
+	    //buf = convert_frame_to_char(outframe);
+	    buf = add_chksum(outframe);
 	    ll_append_node(outgoing_frames_head_ptr, buf);
 	}
 

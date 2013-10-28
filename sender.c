@@ -1,5 +1,5 @@
 #include "sender.h"
-
+#include "chksum.h"
 
 void print_frame(Frame* frame)
 {
@@ -95,6 +95,15 @@ void handle_incoming_acks(Sender * sender,
         incoming_msgs_length = ll_get_length(sender->input_framelist_head);
         char * raw_char_buf = (char *) ll_inmsg_node->value;
         Frame * inframe = convert_char_to_frame(raw_char_buf);
+	short checksum;
+
+	checksum = chksum((unsigned short*) raw_char_buf, 
+			    MAX_FRAME_SIZE / 2);
+	if (checksum)
+	{
+	    fprintf(stderr, "send checksum error\n");
+	    continue;
+	}
         free(raw_char_buf);
 
 	if (sender->send_id == inframe->dst)
@@ -169,19 +178,14 @@ void handle_pending_frame(Sender * sender,
 	
 	frame = build_frame(sender);
 	
-	//buf = add_chksum(frame);
-	buf = convert_frame_to_char(frame);
-	frame->checksum = chksum((unsigned short*) buf, 
-				MAX_FRAME_SIZE / 2);
-	buf = convert_frame_to_char(frame);
-	
-	print_frame(frame);
+	buf = add_chksum(frame);
+	//buf = convert_frame_to_char(frame);
 	// add into the sender buffer;
 	int pos;
 	pos = frame->seq % sender->SWS;
 
 	free (sender->buffer[pos]);
-	*(sender->buffer + pos) = frame;
+	*(sender->buffer + pos) = (struct Frame*)frame;
 
 	
 	/* buffer lookup
@@ -196,8 +200,8 @@ void handle_pending_frame(Sender * sender,
 
 	struct timeval now;
 	gettimeofday(&now, NULL);
-	long long t;
-	long wait_time = 1000000;
+	//long long t;
+	//long wait_time = 1000000;
 	/*
 	now.tv_usec = now.tv_usec + wait_time;
 
@@ -208,7 +212,7 @@ void handle_pending_frame(Sender * sender,
 	    now.tv_usec = now.tv_usec - wait_time;
 	}
 	*/
-	now.tv_sec++;
+	//now.tv_sec++;
 	sender->timestamp[pos] = now;
 	
 	ll_append_node(outgoing_frames_head_ptr, buf);
@@ -267,7 +271,7 @@ void handle_input_cmds(Sender * sender,
 	    sender->message_length = msg_length;
 
 	    //init buffer;
-	    sender->buffer = (Frame**) malloc(8 * sizeof(Frame*));
+	    sender->buffer = (struct Frame**) malloc(8 * sizeof(Frame*));
 	    sender->timestamp = malloc(8 * sizeof(struct timeval));
 
 	    int i;
@@ -347,14 +351,15 @@ void handle_timedout_frames(Sender * sender,
 	fprintf(stderr, "sender,%ld:%ld\n", tmp.tv_sec, tmp.tv_usec);
 	
 	Frame* outgoing_frame;
-	outgoing_frame = sender->buffer[pos];
+	outgoing_frame = (Frame*)sender->buffer[pos];
 	sender->timestamp[pos] = now;
 
-	char * buf = convert_frame_to_char(outgoing_frame);
+	//char * buf = convert_frame_to_char(outgoing_frame);
 
-	outgoing_frame->checksum = chksum((unsigned short*) buf, 
-				    MAX_FRAME_SIZE / 2);
-	buf = convert_frame_to_char(outgoing_frame);
+	//outgoing_frame->checksum = chksum((unsigned short*) buf, 
+	//			    MAX_FRAME_SIZE / 2);
+	//buf = convert_frame_to_char(outgoing_frame);
+	char* buf = add_chksum(outgoing_frame);
 	char* outgoing_charbuf = buf;
 	    
 	print_frame(outgoing_frame);
