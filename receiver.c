@@ -31,7 +31,7 @@ void init_receiver(Receiver * receiver,
 
     receiver->LFR = -1;
     receiver->RWS = 8;
-    receiver->LAF = receiver->LAF + receiver->RWS;
+    receiver->LAF = receiver->LFR + receiver->RWS;
     receiver->fin = 0;
 
     // init message;
@@ -87,7 +87,26 @@ int copy_buffer(Receiver * receiver, int seq)
     //print_receiver(receiver);
     if (receiver->fin)
     {
+	receiver->fin = 0;
+	receiver->LFR = -1;
+	receiver->RWS = 8;
+	receiver->LAF = receiver->LFR + receiver->RWS;
 	printf("<RECV_%d>:[%s]\n", receiver->recv_id, receiver->message);
+
+	receiver->message = malloc(1);
+	*(receiver->message) = 0;
+	receiver->buffer = malloc(8 * sizeof(Frame*));
+
+	int i; 
+	for (i = 0; i < receiver->RWS; i++)
+	{
+	    frame = (Frame*) malloc(sizeof(Frame));
+	    frame->seq = -1;
+	    frame->ack = -1;
+	    receiver->buffer[i] = (struct Frame*)frame;
+	}
+	receiver->buffer_pos = 0;
+
     }
     return 0;
 }
