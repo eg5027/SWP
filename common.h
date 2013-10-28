@@ -86,8 +86,14 @@ struct Frame_t
 struct Receiver_t
 {
     char* message;
-    char** buffer;
+    struct Frame* *buffer;
     int buffer_pos;
+
+    int LFR; // acked one
+    int LAF; // To be acked
+    int RWS; // 
+
+    int fin;
 
     //DO NOT CHANGE:
     // 1) buffer_mutex

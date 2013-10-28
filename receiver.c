@@ -1,28 +1,143 @@
 #include "receiver.h"
+void print_f(Frame* frame)
+{
+    fprintf(stderr, "\nframe:\n");
+//    fprintf(stderr, "frame->src=%d\n", frame->src);
+//    fprintf(stderr, "frame->dst=%d\n", frame->dst);
+//    fprintf(stderr, "frame->checksum=%d\n", frame->checksum);
+    fprintf(stderr, "frame->seq=%d\n", frame->seq);
+    fprintf(stderr, "frame->ack=%d\n", frame->ack);
+    fprintf(stderr, "frame->flag=%d\n", frame->flag);
+//    fprintf(stderr, "frame->window_size=%d\n", frame->window_size);
+    fprintf(stderr, "frame->data=%s\n", frame->data);
+    fprintf(stderr, "#frame--------\n");
+}
 
+void print_receiver(Receiver * receiver)
+{
+    fprintf(stderr, "receiver:\n");
+    fprintf(stderr, "receiver->LFR=%d\n", receiver->LFR);
+    fprintf(stderr, "receiver->LAF=%d\n", receiver->LAF);
+    fprintf(stderr, "receiver->RWS=%d\n", receiver->RWS);
+    fprintf(stderr, "receiver->fin=%d\n", receiver->fin);
+    fprintf(stderr, "receiver->message=%s\n", receiver->message);
+}
 void init_receiver(Receiver * receiver,
                    int id)
 {
     receiver->recv_id = id;
     receiver->input_framelist_head = NULL;
+
+    receiver->LFR = -1;
+    receiver->RWS = 2;
+    receiver->LAF = receiver->LAF + receiver->RWS;
+    receiver->fin = 0;
+
+    // init message;
+    receiver->message = malloc(1);
+    *(receiver->message) = 0;
+    receiver->buffer = (Frame*)malloc(8 * sizeof(Frame*));
+
+    int i; 
+    Frame* frame;
+    for (i = 0; i < receiver->RWS; i++)
+    {
+	frame = (Frame*) malloc(sizeof(Frame));
+	frame->seq = -1;
+	frame->ack = -1;
+	receiver->buffer[i] = frame;
+    }
+    receiver->buffer_pos = 0;
 }
 
+char* append_string(char* old, char* new)
+{
+    char* new_string;
+    int old_length;
+    int new_length;
+    old_length = strlen(old);
+    new_length = strlen(new);
+    new_string = malloc(old_length + new_length + 1);
+    strcpy(new_string, old);
+    strcpy(new_string + old_length, new);
+    free(old);
+    return new_string;
+}
+int copy_buffer(Receiver * receiver, int seq)
+{
+
+    int iseq;
+    int ipos;
+    Frame* frame;
+    char* new_string;
+    for (iseq = seq; (iseq > receiver->LFR) && iseq >= 0; iseq--)
+    {
+	ipos = iseq % receiver->RWS;
+	frame = receiver->buffer[ipos];
+	new_string = frame->data;
+	receiver->message = append_string(receiver->message,new_string);
+    }
+    print_receiver(receiver);
+    return 0;
+}
 Frame* build_ack(Receiver * receiver,
       			  Frame* inframe)
 {
     Frame* outframe;
-
     outframe = (Frame*) malloc(sizeof(Frame));
-    
     //dst
     outframe->src = inframe->dst;
     outframe->dst = inframe->src;
+    outframe->flag = ACK;
+    outframe->seq = inframe->seq;
+    outframe->ack = receiver->LFR;
+
+    if (!(inframe->seq > receiver->LFR 
+	&& inframe->seq <= receiver->LAF))
+    {
+	return outframe;
+    }
+
+    //insert inframe into the buffer;
+    int pos;
+    pos = inframe->seq % receiver->RWS;
+
+    free(receiver->buffer[pos]); // Free the pervious one
+    receiver->buffer[pos] = inframe;
+
+    //quick update LFR
+
+    //update the LFR 
+    int iseq; // temp seq;  [LAR .. tseq]
+    int ipos;
+    int all_recv = 1;
+    Frame* tmp;
+    for (iseq = inframe->seq; (iseq > receiver->LFR) && iseq >= 0; iseq--)
+    {
+	ipos = iseq % receiver->RWS;
+	tmp = receiver->buffer[ipos];
+	if (iseq == tmp->seq)
+	{
+	    continue;
+	}
+	else
+	{
+	    all_recv = 0;
+	    break;
+	}
+    }
+    //update the LFR&LAR if all_recv
+    if (all_recv)
+    {
+	copy_buffer(receiver, inframe->seq);
+	receiver->LFR = inframe->seq;
+	receiver->LAF = receiver->LFR + receiver->RWS;
+    }
+
+    outframe->ack = receiver->LFR;
 
     //TODO:ack should be the receiver's ack
-    outframe->seq = inframe->seq;
-    outframe->ack = inframe->seq;
 
-    outframe->flag = ACK;
 
     //outframe->window_size = receiver->RWS;
     return outframe;
@@ -63,13 +178,14 @@ void handle_incoming_msgs(Receiver * receiver,
 	    Frame * outframe;
 	    char* buf;
 	    printf("<RECV_%d>:[%s]\n", receiver->recv_id, inframe->data);
+
 	    outframe = build_ack(receiver, inframe);
 
 	    buf = convert_frame_to_char(outframe);
 	    ll_append_node(outgoing_frames_head_ptr, buf);
 	}
 
-        free(inframe);
+        //free(inframe);
         free(ll_inmsg_node);
     }
 }
