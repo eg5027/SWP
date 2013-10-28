@@ -71,7 +71,9 @@ int copy_buffer(Receiver * receiver, int seq)
     int ipos;
     Frame* frame;
     char* new_string;
-    for (iseq = seq; (iseq > receiver->LFR) && iseq >= 0; iseq--)
+
+    //for (iseq = seq; (iseq > receiver->LFR) && iseq >= 0; iseq--)
+    for (iseq = (receiver->LFR + 1); iseq <= seq; iseq++)
     {
 	ipos = iseq % receiver->RWS;
 	frame = (Frame*)receiver->buffer[ipos];
