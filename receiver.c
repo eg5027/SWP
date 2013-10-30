@@ -85,32 +85,7 @@ int copy_buffer(Receiver * receiver, int seq)
 	new_string = frame->data;
 	receiver->message = append_string(receiver->message,new_string);
     }
-    //print_receiver(receiver);
-    if (receiver->fin)
-    {
-	receiver->fin = 0;
-	receiver->LFR = -1;
-	receiver->RWS = 8;
-	receiver->LAF = receiver->LFR + receiver->RWS;
-	printf("<RECV_%d>:[%s]\n", receiver->recv_id, receiver->message);
-	fprintf(stderr, "message=%ld\n", strlen(receiver->message));
-
-	receiver->message = malloc(1);
-	*(receiver->message) = 0;
-	receiver->buffer = malloc(8 * sizeof(Frame*));
-
-	int i; 
-	for (i = 0; i < receiver->RWS; i++)
-	{
-	    frame = (Frame*) malloc(sizeof(Frame));
-	    frame->seq = -1;
-	    frame->ack = -1;
-	    receiver->buffer[i] = (struct Frame*)frame;
-	}
-	receiver->buffer_pos = 0;
-
-    }
-    return 0;
+   return 0;
 }
 Frame* build_ack(Receiver * receiver,
       			  Frame* inframe)
@@ -122,7 +97,8 @@ Frame* build_ack(Receiver * receiver,
     outframe->dst = inframe->src;
     outframe->flag = ACK;
     outframe->seq = inframe->seq;
-    outframe->ack = receiver->LFR;
+    outframe->ack = inframe->seq;
+    //outframe->ack = receiver->LFR;
 
     if (!(inframe->seq > (receiver->LFR % MAX_SEQ)
 	&& inframe->seq <= (receiver->LAF % MAX_SEQ)))
@@ -172,6 +148,30 @@ Frame* build_ack(Receiver * receiver,
     //TODO:ack should be the receiver's ack
 
 
+    if (receiver->fin)
+    {
+	receiver->fin = 0;
+	receiver->LFR = -1;
+	receiver->RWS = 8;
+	receiver->LAF = receiver->LFR + receiver->RWS;
+	printf("<RECV_%d>:[%s]\n", receiver->recv_id, receiver->message);
+	fprintf(stderr, "message=%ld\n", strlen(receiver->message));
+
+	receiver->message = malloc(1);
+	*(receiver->message) = 0;
+	receiver->buffer = malloc(8 * sizeof(Frame*));
+
+	Frame* frame;
+	int i; 
+	for (i = 0; i < receiver->RWS; i++)
+	{
+	    frame = (Frame*) malloc(sizeof(Frame));
+	    frame->seq = -1;
+	    frame->ack = -1;
+	    receiver->buffer[i] = (struct Frame*)frame;
+	}
+	receiver->buffer_pos = 0;
+    }
     //outframe->window_size = receiver->RWS;
     return outframe;
     

@@ -40,21 +40,36 @@ void init_sender(Sender * sender, int id)
 
 struct timeval * sender_get_next_expiring_timeval(Sender * sender)
 {
+    return NULL;
     //TODO: You should fill in this function so that it returns the next timeout that should occur
-    struct timeval * tmp;
+    struct timeval tmp;
+    struct timeval now;
+    struct timeval *value;
 
+    unsigned char seq;
+    unsigned char pos;
 
-    int pos;
-    if (sender->fin == 2)
+    long min;
+    long interval;
+    min = 999999;
+    gettimeofday(&now, NULL);
+    for (seq = (sender->LAR + 1); seq <= sender->LFS; seq++)
     {
-	return NULL;
+	//seq = sender->LAR + 1;
+	pos = seq % sender->SWS;
+
+	tmp = sender->timestamp[pos];
+	
+	interval = (now.tv_sec - tmp.tv_sec) * 1000000
+		   + (now.tv_usec - tmp.tv_usec);
+
+	if (interval < min)
+	{
+	    min = interval;
+	    value = &(sender->timestamp[pos]);
+	}
     }
-    pos = (sender->LAR + 1) % sender->SWS;
-
-    tmp = &(sender->timestamp[pos]);
-    return tmp;
-
-
+    return value;
     //gettimeofday(&now,NULL);
     /*
     for (i = 0; i < sender->SWS; i++)
@@ -336,18 +351,19 @@ void handle_timedout_frames(Sender * sender,
 	//find the timeout and send out
     int pos;
     int seq;
+    gettimeofday(&now, NULL);
     for (seq = (sender->LAR + 1); seq <= sender->LFS; seq++)
     {
 	//seq = sender->LAR + 1;
 	pos = seq % sender->SWS;
 
-	gettimeofday(&now, NULL);
 	tmp = sender->timestamp[pos];
 	
 	interval = (now.tv_sec - tmp.tv_sec) * 1000000
 		   + (now.tv_usec - tmp.tv_usec);
 
-	if (interval < 100000)
+	//if (interval < 100000)
+	if (interval < 50000)
 	    return;
 	fprintf(stderr, "sender:timeout!seq=%d\n",seq);
 	fprintf(stderr, "sender,%ld:%ld\n", now.tv_sec, now.tv_usec);
